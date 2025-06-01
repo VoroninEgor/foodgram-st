@@ -4,10 +4,9 @@ import { Switch, Route, useHistory, Redirect } from "react-router-dom";
 import React, { useState, useEffect } from "react";
 import { Header, Footer, ProtectedRoute } from "./components";
 import api from "./api";
-import styles from "./styles.module.css";
 
 import {
-  // About,
+  About,
   Main,
   Cart,
   SignIn,
@@ -22,7 +21,7 @@ import {
   NotFound,
   UpdateAvatar,
   ResetPassword,
-  // Technologies,
+  Technologies,
 } from "./pages";
 
 import { AuthContext, UserContext } from "./contexts";
@@ -214,7 +213,7 @@ function App() {
   // }, [])
 
   if (loggedIn === null) {
-    return <div className={styles.loading}>Загрузка...</div>;
+    return <div className="loading-indicator">Загрузка...</div>;
   }
 
   return (
@@ -294,8 +293,7 @@ function App() {
             </Route>
 
             <Route exact path="/about">
-              <NotFound />
-              {/* <About component={About} /> */}
+              <About />
             </Route>
 
             <Route exact path="/reset-password">
@@ -303,8 +301,7 @@ function App() {
             </Route>
 
             <Route exact path="/technologies">
-              <NotFound />
-              {/* <Technologies component={Technologies}/> */}
+              <Technologies />
             </Route>
 
             <Route exact path="/recipes">

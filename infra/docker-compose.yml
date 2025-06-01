@@ -17,9 +17,7 @@ services:
 
   backend:
     container_name: foodgram-backend
-    build:
-      context: ../backend
-      dockerfile: Dockerfile
+    image: uoykaii/foodgram-backend:latest
     volumes:
       - ../backend/:/app
       - static_content:/app/collected_static
@@ -47,7 +45,7 @@ services:
 
   frontend:
     container_name: foodgram-front
-    build: ../frontend
+    image: uoykaii/foodgram-frontend:latest
     volumes:
       - ../frontend/:/app/result_build/
 

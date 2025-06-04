@@ -175,22 +175,16 @@ class RecipeViewSet(viewsets.ModelViewSet):
         )
         return Response(serializer.data)
     
-    @action(
-        detail=True,
-        methods=['post', 'delete'],
-        permission_classes=[IsAuthenticated]
-    )
-    def favorite(self, request, pk=None):
-        recipe = self.get_object()
-        
+    def _handle_recipe_action(self, request, recipe, model_class, error_message, success_message):
+        '''Общий метод для обработки добавления/удаления рецепта в избранное или корзину.'''
         if request.method == 'POST':
-            favorite, created = Favorite.objects.get_or_create(
+            item, created = model_class.objects.get_or_create(
                 user=request.user, recipe=recipe
             )
             
             if not created:
                 return Response(
-                    {'errors': 'Рецепт уже добавлен в избранное.'},
+                    {'errors': error_message},
                     status=HTTPStatus.BAD_REQUEST
                 )
             
@@ -198,13 +192,13 @@ class RecipeViewSet(viewsets.ModelViewSet):
             return Response(serializer.data, status=HTTPStatus.CREATED)
         
         elif request.method == 'DELETE':
-            deleted, _ = Favorite.objects.filter(
+            deleted, _ = model_class.objects.filter(
                 user=request.user, recipe=recipe
             ).delete()
             
             if not deleted:
                 return Response(
-                    {'errors': 'Рецепт не найден в избранном.'},
+                    {'errors': success_message},
                     status=HTTPStatus.BAD_REQUEST
                 )
             
@@ -215,35 +209,30 @@ class RecipeViewSet(viewsets.ModelViewSet):
         methods=['post', 'delete'],
         permission_classes=[IsAuthenticated]
     )
+    def favorite(self, request, pk=None):
+        recipe = self.get_object()
+        return self._handle_recipe_action(
+            request=request,
+            recipe=recipe,
+            model_class=Favorite,
+            error_message='Рецепт уже добавлен в избранное.',
+            success_message='Рецепт не найден в избранном.'
+        )
+    
+    @action(
+        detail=True,
+        methods=['post', 'delete'],
+        permission_classes=[IsAuthenticated]
+    )
     def shopping_cart(self, request, pk=None):
         recipe = self.get_object()
-        
-        if request.method == 'POST':
-            cart_item, created = ShoppingCart.objects.get_or_create(
-                user=request.user, recipe=recipe
-            )
-            
-            if not created:
-                return Response(
-                    {'errors': 'Рецепт уже добавлен в список покупок.'},
-                    status=HTTPStatus.BAD_REQUEST
-                )
-            
-            serializer = RecipeMinifiedSerializer(recipe)
-            return Response(serializer.data, status=HTTPStatus.CREATED)
-        
-        elif request.method == 'DELETE':
-            deleted, _ = ShoppingCart.objects.filter(
-                user=request.user, recipe=recipe
-            ).delete()
-            
-            if not deleted:
-                return Response(
-                    {'errors': 'Рецепт не найден в списке покупок.'},
-                    status=HTTPStatus.BAD_REQUEST
-                )
-            
-            return Response(status=HTTPStatus.NO_CONTENT)
+        return self._handle_recipe_action(
+            request=request,
+            recipe=recipe,
+            model_class=ShoppingCart,
+            error_message='Рецепт уже добавлен в список покупок.',
+            success_message='Рецепт не найден в списке покупок.'
+        )
     
     @action(
         detail=False,

@@ -4,6 +4,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from rest_framework import serializers
 from djoser.serializers import UserCreateSerializer, UserSerializer
+from rest_framework.generics import get_object_or_404
 
 from recipes.models import (
     Favorite, Ingredient, Recipe, RecipeIngredient, 
@@ -183,29 +184,20 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
     def create_ingredients(self, recipe, ingredients):
         recipe_ingredients = []
         for ingredient_data in ingredients:
-            try:
-                ingredient = Ingredient.objects.get(id=ingredient_data['id'])
-                recipe_ingredients.append(
-                    RecipeIngredient(
-                        recipe=recipe,
-                        ingredient=ingredient,
-                        amount=ingredient_data['amount']
-                    )
+            ingredient = get_object_or_404(Ingredient, id=ingredient_data['id'])
+            recipe_ingredients.append(
+                RecipeIngredient(
+                    recipe=recipe,
+                    ingredient=ingredient,
+                    amount=ingredient_data['amount']
                 )
-            except Ingredient.DoesNotExist:
-                raise serializers.ValidationError(
-                    f'Ингредиент с id {ingredient_data["id"]} не существует.'
-                )
+            )
         RecipeIngredient.objects.bulk_create(recipe_ingredients)
     
     def create(self, validated_data):
         ingredients = validated_data.pop('ingredients')
         recipe = Recipe.objects.create(**validated_data)
-        try:
-            self.create_ingredients(recipe, ingredients)
-        except serializers.ValidationError:
-            recipe.delete()
-            raise
+        self.create_ingredients(recipe, ingredients)
         return recipe
     
     def update(self, instance, validated_data):
@@ -224,7 +216,7 @@ class RecipeCreateSerializer(serializers.ModelSerializer):
 
 class UserWithRecipesSerializer(CustomUserSerializer):
     recipes = serializers.SerializerMethodField()
-    recipes_count = serializers.SerializerMethodField()
+    recipes_count = serializers.IntegerField(read_only=True, default=0)
     
     class Meta:
         model = User
@@ -236,20 +228,17 @@ class UserWithRecipesSerializer(CustomUserSerializer):
     def get_recipes(self, obj):
         request = self.context.get('request')
         recipes_limit = None
+
         if request:
-            recipes_limit = request.query_params.get('recipes_limit')
-        
+            limit_param = request.query_params.get('recipes_limit')
+            if limit_param and limit_param.isdigit():
+                recipes_limit = int(limit_param)
+
         recipes = obj.recipes.all()
-        if recipes_limit:
-            try:
-                recipes = recipes[:int(recipes_limit)]
-            except ValueError:
-                pass
-        
+        if recipes_limit is not None:
+            recipes = recipes[:recipes_limit]
+
         return RecipeMinifiedSerializer(recipes, many=True).data
-    
-    def get_recipes_count(self, obj):
-        return obj.recipes.count()
 
 
 class RecipeShortLinkSerializer(serializers.ModelSerializer):

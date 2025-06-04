@@ -7,6 +7,7 @@ from reportlab.lib.pagesizes import letter
 from reportlab.pdfbase import pdfmetrics
 from reportlab.pdfbase.ttfonts import TTFont
 from io import BytesIO
+from django.db import models
 
 from recipes.models import RecipeIngredient, RecipeShortLink
 from django.conf import settings
@@ -14,7 +15,7 @@ from .constants import DEFAULT_SHORT_CODE_LENGTH
 
 
 def generate_short_code(length=DEFAULT_SHORT_CODE_LENGTH):
-    characters = string.ascii_letters + string.digits
+    characters = f"{string.ascii_letters}{string.digits}"
     return ''.join(random.choice(characters) for _ in range(length))
 
 
@@ -26,34 +27,32 @@ def get_or_create_short_link(recipe):
     return short_link
 
 
-def generate_shopping_list_txt(user):
-    shopping_cart = user.shopping_cart.all()
-    if not shopping_cart:
-        return HttpResponse(
-            'Ваш список покупок пуст.',
-            content_type='text/plain; charset=utf-8'
-        )
-    
-    ingredients = defaultdict(int)
-    
-    for cart_item in shopping_cart:
-        recipe_ingredients = RecipeIngredient.objects.filter(
-            recipe=cart_item.recipe
-        ).select_related('ingredient')
-        
-        for recipe_ingredient in recipe_ingredients:
-            ingredient = recipe_ingredient.ingredient
-            key = f"{ingredient.name} ({ingredient.measurement_unit})"
-            ingredients[key] += recipe_ingredient.amount
+def get_shopping_list_ingredients(user):
+    return RecipeIngredient.objects.filter(
+        recipe__shopping_cart__user=user
+    ).values(
+        'ingredient__name',
+        'ingredient__measurement_unit'
+    ).annotate(
+        total_amount=models.Sum('amount')
+    ).order_by('ingredient__name')
+
+
+def format_shopping_list(ingredients):
+    if not ingredients:
+        return 'Ваш список покупок пуст.'
     
     shopping_list = "Список покупок:\n\n"
-    for ingredient, amount in sorted(ingredients.items()):
-        shopping_list += f"• {ingredient} — {amount}\n"
+    for ingredient in ingredients:
+        name = ingredient['ingredient__name']
+        unit = ingredient['ingredient__measurement_unit']
+        amount = ingredient['total_amount']
+        shopping_list += f"• {name} ({unit}) — {amount}\n"
     
-    response = HttpResponse(
-        shopping_list,
-        content_type='text/plain; charset=utf-8'
-    )
-    response['Content-Disposition'] = 'attachment; filename="shopping_list.txt"'
-    return response
+    return shopping_list
+
+
+def generate_shopping_list_txt(user):
+    ingredients = get_shopping_list_ingredients(user)
+    return format_shopping_list(ingredients)
     

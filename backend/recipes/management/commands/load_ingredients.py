@@ -1,5 +1,6 @@
 import csv
-import os
+from pathlib import Path
+
 from django.core.management.base import BaseCommand
 from django.conf import settings
 
@@ -9,49 +10,53 @@ from recipes.models import Ingredient
 class Command(BaseCommand):
     def add_arguments(self, parser):
         parser.add_argument(
-            '--file',
+            'file',
             type=str,
-            default='ingredients.csv',
         )
-    
+
     def handle(self, *args, **options):
-        file_path = options['file']
+        file_path = Path(options['file'])
         
-        if not os.path.isabs(file_path):
-            data_dir = os.path.join(settings.BASE_DIR.parent, 'data')
-            file_path = os.path.join(data_dir, file_path)
-        
-        if not os.path.exists(file_path):
+        if not file_path.is_absolute():
+            data_dir = settings.BASE_DIR.parent / 'data'
+            file_path = data_dir / file_path
+
+        if not file_path.exists():
             self.stdout.write(
                 self.style.ERROR(f'Файл {file_path} не найден')
             )
             return
-        
-        ingredients_created = 0
-        ingredients_updated = 0
-        
-        with open(file_path, 'r', encoding='utf-8') as csvfile:
-            reader = csv.reader(csvfile)
-            
-            for row in reader:
-                if len(row) >= 2:
-                    name = row[0].strip()
-                    measurement_unit = row[1].strip()
-                    
-                    ingredient, created = Ingredient.objects.get_or_create(
-                        name=name,
-                        measurement_unit=measurement_unit
+
+        try:
+            with open(file_path, encoding='utf-8') as file:
+                reader = csv.reader(file)
+                ingredients = []
+                for row in reader:
+                    if len(row) != 2:
+                        continue
+                    name, measurement_unit = row
+                    ingredients.append(
+                        Ingredient(
+                            name=name.strip(),
+                            measurement_unit=measurement_unit.strip()
+                        )
                     )
-                    
-                    if created:
-                        ingredients_created += 1
-                    else:
-                        ingredients_updated += 1
-        
-        self.stdout.write(
-            self.style.SUCCESS(
-                f'Загрузка завершена. '
-                f'Создано: {ingredients_created}, '
-                f'Обновлено: {ingredients_updated}'
-            )
-        ) 
+                
+                if ingredients:
+                    Ingredient.objects.bulk_create(
+                        ingredients,
+                        ignore_conflicts=True
+                    )
+                    self.stdout.write(
+                        self.style.SUCCESS(
+                            f'Успешно загружено {len(ingredients)} ингредиентов'
+                        )
+                    )
+                else:
+                    self.stdout.write(
+                        self.style.WARNING('Файл не содержит данных')
+                    )
+        except Exception as e:
+            self.stdout.write(
+                self.style.ERROR(f'Ошибка при загрузке файла: {e}')
+            ) 

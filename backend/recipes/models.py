@@ -1,5 +1,8 @@
+import random
+import string
+
 from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator
+from django.core.validators import MinValueValidator, MaxValueValidator
 from django.db import models
 
 from api.constants import (
@@ -7,8 +10,10 @@ from api.constants import (
     MAX_LENGTH_MEASUREMENT_UNIT,
     MAX_LENGTH_RECIPE_NAME,
     MIN_COOKING_TIME,
+    MAX_COOKING_TIME,
     MIN_INGREDIENT_AMOUNT,
-    MAX_LENGTH_SHORT_CODE
+    MAX_LENGTH_SHORT_CODE,
+    DEFAULT_SHORT_CODE_LENGTH
 )
 from users.models import User
 
@@ -61,11 +66,23 @@ class Recipe(models.Model):
     ingredients = models.ManyToManyField(
         Ingredient,
         through='RecipeIngredient',
+        related_name='recipes',
         verbose_name='Ингредиенты',
     )
-    cooking_time = models.PositiveIntegerField(
+    cooking_time = models.PositiveSmallIntegerField(
         verbose_name='Время приготовления (в минутах)',
-        validators=[MinValueValidator(MIN_COOKING_TIME)],
+        validators=[
+            MinValueValidator(MIN_COOKING_TIME),
+            MaxValueValidator(MAX_COOKING_TIME)
+        ],
+    )
+    short_link = models.CharField(
+        verbose_name='Короткая ссылка',
+        max_length=MAX_LENGTH_SHORT_CODE,
+        unique=True,
+        editable=False,
+        null=True,
+        blank=True
     )
     created = models.DateTimeField(
         'Дата создания',
@@ -79,6 +96,18 @@ class Recipe(models.Model):
 
     def __str__(self):
         return self.name
+
+    def save(self, *args, **kwargs):
+        if not self.short_link:
+            self.short_link = self.generate_short_link()
+        super().save(*args, **kwargs)
+
+    def generate_short_link(self):
+        characters = f"{string.ascii_letters}{string.digits}"
+        while True:
+            short_link = ''.join(random.choice(characters) for _ in range(DEFAULT_SHORT_CODE_LENGTH))
+            if not Recipe.objects.filter(short_link=short_link).exists():
+                return short_link
 
 
 class RecipeIngredient(models.Model):
@@ -177,29 +206,3 @@ class ShoppingCart(models.Model):
 
     def __str__(self):
         return f'{self.user.username} добавил {self.recipe.name} в список покупок'
-
-
-class RecipeShortLink(models.Model):
-    recipe = models.OneToOneField(
-        Recipe,
-        on_delete=models.CASCADE,
-        related_name='short_link',
-        verbose_name='Рецепт',
-    )
-    short_code = models.CharField(
-        verbose_name='Короткий код',
-        max_length=MAX_LENGTH_SHORT_CODE,
-        unique=True,
-    )
-    created = models.DateTimeField(
-        'Дата создания',
-        auto_now_add=True,
-    )
-
-    class Meta:
-        verbose_name = 'Короткая ссылка'
-        verbose_name_plural = 'Короткие ссылки'
-        ordering = ['-created']
-
-    def __str__(self):
-        return f'Короткая ссылка на {self.recipe.name}'

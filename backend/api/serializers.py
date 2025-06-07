@@ -1,14 +1,18 @@
 import base64
 import uuid
+
 from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
-from rest_framework import serializers
 from djoser.serializers import UserCreateSerializer, UserSerializer
+from rest_framework import serializers
 from rest_framework.generics import get_object_or_404
 
 from recipes.models import (
-    Favorite, Ingredient, Recipe, RecipeIngredient, 
-    RecipeShortLink, ShoppingCart
+    Favorite,
+    Ingredient,
+    Recipe,
+    RecipeIngredient,
+    ShoppingCart,
 )
 from users.models import Subscription
 
@@ -242,17 +246,17 @@ class UserWithRecipesSerializer(CustomUserSerializer):
 
 
 class RecipeShortLinkSerializer(serializers.ModelSerializer):
-    short_link = serializers.SerializerMethodField(source='short-link')
+    short_link = serializers.SerializerMethodField()
     
     class Meta:
-        model = RecipeShortLink
+        model = Recipe
         fields = ('short_link',)
     
     def get_short_link(self, obj):
         request = self.context.get('request')
         if request:
-            return request.build_absolute_uri(f'/s/{obj.short_code}/')
-        return f'/s/{obj.short_code}/'
+            return request.build_absolute_uri(f'/s/{obj.short_link}/')
+        return f'/s/{obj.short_link}/'
     
     def to_representation(self, instance):
         data = super().to_representation(instance)

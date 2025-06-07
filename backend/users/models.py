@@ -3,9 +3,9 @@ from django.db import models
 
 from api.constants import (
     MAX_LENGTH_EMAIL,
-    MAX_LENGTH_USERNAME,
     MAX_LENGTH_FIRST_NAME,
-    MAX_LENGTH_LAST_NAME
+    MAX_LENGTH_LAST_NAME,
+    MAX_LENGTH_USERNAME,
 )
 
 
@@ -32,7 +32,7 @@ class User(AbstractUser):
         'Аватар',
         upload_to='users/avatars/',
         blank=True,
-        null=True,
+        default='',
     )
 
     USERNAME_FIELD = 'email'

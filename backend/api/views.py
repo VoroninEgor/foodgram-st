@@ -1,36 +1,47 @@
-from django.shortcuts import render, get_object_or_404, redirect
 from django.contrib.auth import get_user_model
+from django.contrib.auth.models import AnonymousUser
+from django.db.models import Count, Prefetch
+from django.http import HttpResponse
+from django.shortcuts import get_object_or_404, redirect
 from django_filters.rest_framework import DjangoFilterBackend
+from djoser.views import UserViewSet as DjoserUserViewSet
+from http import HTTPStatus
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
 from rest_framework.response import Response
-from djoser.views import UserViewSet as DjoserUserViewSet
-from django.contrib.auth.models import AnonymousUser
-from django.db.models import Count
-from django.http import HttpResponse
 
 from recipes.models import (
-    Favorite, Ingredient, Recipe, RecipeShortLink, ShoppingCart
+    Favorite,
+    Ingredient,
+    Recipe,
+    RecipeIngredient,
+    ShoppingCart,
 )
 from users.models import Subscription
+
 from .filters import IngredientFilter, RecipeFilter
 from .pagination import CustomPageNumberPagination
 from .permissions import IsAuthorOrReadOnly
 from .serializers import (
-    CustomUserSerializer, IngredientSerializer, RecipeCreateSerializer,
-    RecipeListSerializer, RecipeMinifiedSerializer, RecipeShortLinkSerializer,
-    SetAvatarSerializer, SubscriptionSerializer, UserWithRecipesSerializer
+    CustomUserSerializer,
+    IngredientSerializer,
+    RecipeCreateSerializer,
+    RecipeListSerializer,
+    RecipeMinifiedSerializer,
+    RecipeShortLinkSerializer,
+    SetAvatarSerializer,
+    SubscriptionSerializer,
+    UserWithRecipesSerializer,
 )
-from .utils import generate_shopping_list_txt, get_or_create_short_link
-from http import HTTPStatus
+from .utils import generate_shopping_list_txt
 
 User = get_user_model()
 
 
 def short_link_redirect(request, short_code):
-    short_link = get_object_or_404(RecipeShortLink, short_code=short_code)
-    return redirect(f'/recipes/{short_link.recipe.id}/')
+    recipe = get_object_or_404(Recipe, short_link=short_code)
+    return redirect(f'/recipes/{recipe.id}/')
 
 
 class CustomUserViewSet(DjoserUserViewSet):
@@ -89,46 +100,38 @@ class CustomUserViewSet(DjoserUserViewSet):
         return Response(serializer.data)
     
     @action(
-        detail=True,
-        methods=['post', 'delete'],
-        permission_classes=[IsAuthenticated]
+    detail=True,
+    methods=['post', 'delete'],
+    permission_classes=[IsAuthenticated]
     )
     def subscribe(self, request, id=None):
-        author = get_object_or_404(User, id=id) # Проверка на существование автора нужна и при удалении в постман тестах
+        author = get_object_or_404(User, id=id)
         
         if request.method == 'POST':
-            if request.user == author:
-                return Response(
-                    {'errors': 'Нельзя подписаться на самого себя.'},
-                    status=HTTPStatus.BAD_REQUEST
-                )
-            
-            subscription, created = Subscription.objects.get_or_create(
-                user=request.user, author=author
+            serializer = SubscriptionSerializer(
+                data={'user': request.user.id, 'author': id},
+                context={'request': request}
             )
-            
-            if not created:
-                return Response(
-                    {'errors': 'Вы уже подписаны на этого пользователя.'},
-                    status=HTTPStatus.BAD_REQUEST
-                )
-            
-            serializer = UserWithRecipesSerializer(
-                author, context={'request': request}
+            serializer.is_valid(raise_exception=True)
+            serializer.save()
+
+            return Response(
+                UserWithRecipesSerializer(author, context={'request': request}).data,
+                status=HTTPStatus.CREATED
             )
-            return Response(serializer.data, status=HTTPStatus.CREATED)
         
         elif request.method == 'DELETE':
-            deleted, _ = Subscription.objects.filter(
-                user=request.user, author=author
+            deleted_count, _ = Subscription.objects.filter(
+                user=request.user,
+                author=author
             ).delete()
-            
-            if not deleted:
+
+            if not deleted_count:
                 return Response(
                     {'errors': 'Вы не подписаны на этого пользователя.'},
                     status=HTTPStatus.BAD_REQUEST
                 )
-            
+
             return Response(status=HTTPStatus.NO_CONTENT)
 
     @action(detail=False, methods=['get', 'put', 'patch', 'delete'],
@@ -148,7 +151,12 @@ class IngredientViewSet(viewsets.ReadOnlyModelViewSet):
 
 
 class RecipeViewSet(viewsets.ModelViewSet):
-    queryset = Recipe.objects.all()
+    queryset = Recipe.objects.select_related('author').prefetch_related(
+        Prefetch(
+            'recipe_ingredients',
+            queryset=RecipeIngredient.objects.select_related('ingredient')
+        )
+    ).all()
     permission_classes = [IsAuthenticatedOrReadOnly, IsAuthorOrReadOnly]
     filter_backends = (DjangoFilterBackend,)
     filterset_class = RecipeFilter
@@ -169,9 +177,8 @@ class RecipeViewSet(viewsets.ModelViewSet):
     )
     def get_link(self, request, pk=None):
         recipe = self.get_object()
-        short_link = get_or_create_short_link(recipe)
         serializer = RecipeShortLinkSerializer(
-            short_link, context={'request': request}
+            recipe, context={'request': request}
         )
         return Response(serializer.data)
     

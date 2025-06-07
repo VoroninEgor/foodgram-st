@@ -14,5 +14,7 @@ MAX_LENGTH_SHORT_CODE = 10
 MIN_INGREDIENT_AMOUNT = 1
 '''Минимальное время приготовления в минутах.'''
 MIN_COOKING_TIME = 1
+'''Максимальное время приготовления в минутах.'''
+MAX_COOKING_TIME = 1440
 '''Длина короткого кода.'''
 DEFAULT_SHORT_CODE_LENGTH = 6 

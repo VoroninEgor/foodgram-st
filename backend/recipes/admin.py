@@ -1,9 +1,14 @@
 from django.contrib import admin
-from django.db.models import Count
+from django.db.models import Count, Prefetch
 
-from .models import (Favorite, Ingredient, Recipe, RecipeIngredient,
-                     RecipeShortLink, ShoppingCart)
 from api.constants import MIN_INGREDIENT_AMOUNT
+from .models import (
+    Favorite,
+    Ingredient,
+    Recipe,
+    RecipeIngredient,
+    ShoppingCart,
+)
 
 
 class RecipeIngredientInline(admin.TabularInline):
@@ -12,28 +17,30 @@ class RecipeIngredientInline(admin.TabularInline):
     min_num = MIN_INGREDIENT_AMOUNT
 
 
-@admin.register(Ingredient)
-class IngredientAdmin(admin.ModelAdmin):
-    list_display = ('id', 'name', 'measurement_unit')
-    list_filter = ('measurement_unit',)
-    search_fields = ('name',)
-    ordering = ('name',)
-
-
 @admin.register(Recipe)
 class RecipeAdmin(admin.ModelAdmin):
     list_display = (
         'id', 'name', 'author', 'cooking_time', 'created', 'favorites_count'
     )
-    list_filter = ('created', 'author')
-    search_fields = ('name', 'author__username', 'author__email')
+    list_filter = (
+        'created',
+        'author',
+        ('author__username', admin.RelatedOnlyFieldListFilter),
+    )
+    search_fields = ('name',) 
     ordering = ('-created',)
     inlines = (RecipeIngredientInline,)
     readonly_fields = ('favorites_count',)
     
     def get_queryset(self, request):
         queryset = super().get_queryset(request)
-        return queryset.annotate(
+        return queryset.select_related('author').prefetch_related(
+            'ingredients',
+            Prefetch(
+                'recipe_ingredients',
+                queryset=RecipeIngredient.objects.select_related('ingredient')
+            )
+        ).annotate(
             favorites_count=Count('favorites')
         )
     
@@ -65,12 +72,3 @@ class ShoppingCartAdmin(admin.ModelAdmin):
     list_filter = ('created',)
     search_fields = ('user__username', 'recipe__name')
     ordering = ('-created',)
-
-
-@admin.register(RecipeShortLink)
-class RecipeShortLinkAdmin(admin.ModelAdmin):
-    list_display = ('id', 'recipe', 'short_code', 'created')
-    list_filter = ('created',)
-    search_fields = ('recipe__name', 'short_code')
-    ordering = ('-created',)
-    readonly_fields = ('short_code',)

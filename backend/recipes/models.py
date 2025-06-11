@@ -2,18 +2,19 @@ import random
 import string
 
 from django.contrib.auth import get_user_model
-from django.core.validators import MinValueValidator, MaxValueValidator
+from django.core.validators import MaxValueValidator, MinValueValidator
 from django.db import models
 
 from api.constants import (
+    DEFAULT_SHORT_CODE_LENGTH,
+    MAX_INGREDIENT_AMOUNT,
     MAX_LENGTH_INGREDIENT_NAME,
     MAX_LENGTH_MEASUREMENT_UNIT,
     MAX_LENGTH_RECIPE_NAME,
-    MIN_COOKING_TIME,
-    MAX_COOKING_TIME,
-    MIN_INGREDIENT_AMOUNT,
     MAX_LENGTH_SHORT_CODE,
-    DEFAULT_SHORT_CODE_LENGTH
+    MAX_COOKING_TIME,
+    MIN_COOKING_TIME,
+    MIN_INGREDIENT_AMOUNT,
 )
 from users.models import User
 
@@ -81,8 +82,8 @@ class Recipe(models.Model):
         max_length=MAX_LENGTH_SHORT_CODE,
         unique=True,
         editable=False,
-        null=True,
-        blank=True
+        blank=True,
+        default='',
     )
     created = models.DateTimeField(
         'Дата создания',
@@ -123,9 +124,12 @@ class RecipeIngredient(models.Model):
         related_name='recipe_ingredients',
         verbose_name='Ингредиент',
     )
-    amount = models.PositiveIntegerField(
+    amount = models.PositiveSmallIntegerField(
         verbose_name='Количество',
-        validators=[MinValueValidator(MIN_INGREDIENT_AMOUNT)],
+        validators=[
+            MinValueValidator(MIN_INGREDIENT_AMOUNT),
+            MaxValueValidator(MAX_INGREDIENT_AMOUNT)
+        ],
     )
 
     class Meta:

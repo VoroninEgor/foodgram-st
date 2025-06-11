@@ -2,6 +2,7 @@ from django.contrib import admin
 from django.db.models import Count, Prefetch
 
 from api.constants import MIN_INGREDIENT_AMOUNT
+
 from .models import (
     Favorite,
     Ingredient,

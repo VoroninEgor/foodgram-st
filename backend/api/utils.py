@@ -28,9 +28,6 @@ def get_shopping_list_ingredients(user):
 def generate_shopping_list_txt(user):
     ingredients = get_shopping_list_ingredients(user)
     
-    if not ingredients:
-        return 'Список покупок пуст.'
-    
     shopping_list = ['Список покупок:\n']
     
     for ingredient in ingredients:

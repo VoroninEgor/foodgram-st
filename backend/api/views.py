@@ -1,3 +1,5 @@
+from http import HTTPStatus
+
 from django.contrib.auth import get_user_model
 from django.contrib.auth.models import AnonymousUser
 from django.db.models import Count, Prefetch
@@ -5,7 +7,6 @@ from django.http import HttpResponse
 from django.shortcuts import get_object_or_404, redirect
 from django_filters.rest_framework import DjangoFilterBackend
 from djoser.views import UserViewSet as DjoserUserViewSet
-from http import HTTPStatus
 from rest_framework import viewsets
 from rest_framework.decorators import action
 from rest_framework.permissions import IsAuthenticated, IsAuthenticatedOrReadOnly
@@ -183,7 +184,7 @@ class RecipeViewSet(viewsets.ModelViewSet):
         return Response(serializer.data)
     
     def _handle_recipe_action(self, request, recipe, model_class, error_message, success_message):
-        '''Общий метод для обработки добавления/удаления рецепта в избранное или корзину.'''
+        """Общий метод для обработки добавления/удаления рецепта в избранное или корзину."""
         if request.method == 'POST':
             item, created = model_class.objects.get_or_create(
                 user=request.user, recipe=recipe
